@@ -1,116 +1,120 @@
-import boto3
-from botocore.exceptions import ClientError
-from time import sleep
 import os
+import boto3
+from time import sleep
+from dotenv import load_dotenv
+from connectEC2 import conectarseEC2Cliente, conectarseEC2Recurso
 
-from connectEC2 import conectarseEC2Recurso, conectarseEC2Cliente
+load_dotenv()
 
+# -----------------------------
 # Conexiones
+# -----------------------------
 ec2 = conectarseEC2Recurso()
-client = conectarseEC2Cliente()
-efs_client = boto3.client("efs", region_name="us-east-1")
+ec2_client = conectarseEC2Cliente()
 
-# --------------------------------------------------
+session = boto3.session.Session(
+    aws_access_key_id=os.getenv("ACCESS_KEY"),
+    aws_secret_access_key=os.getenv("SECRET_KEY"),
+    aws_session_token=os.getenv("SESSION_TOKEN"),
+    region_name=os.getenv("REGION")
+)
+
+efs_client = session.client("efs")
+
+# -----------------------------
 # Crear EFS
-# --------------------------------------------------
+# -----------------------------
 def crear_efs(nombre="MiEFS"):
-    """
-    Crea un sistema de archivos EFS
-    Devuelve el FileSystemId
-    """
     resp = efs_client.create_file_system(
         CreationToken=nombre,
-        PerformanceMode="generalPurpose",
-        ThroughputMode="bursting",
         Tags=[{"Key": "Name", "Value": nombre}]
     )
 
     efs_id = resp["FileSystemId"]
     print(f"EFS creado: {efs_id}")
 
-    # Esperar a que esté disponible
-    waiter = efs_client.get_waiter("file_system_available")
-    waiter.wait(FileSystemId=efs_id)
+    # Espera activa hasta que esté disponible
+    print("Esperando a que EFS esté disponible...")
+    while True:
+        desc = efs_client.describe_file_systems(
+            FileSystemId=efs_id
+        )
+
+        estado = desc["FileSystems"][0]["LifeCycleState"]
+        print(f"Estado EFS: {estado}")
+
+        if estado == "available":
+            break
+
+        sleep(5)
 
     print(f"EFS {efs_id} disponible")
     return efs_id
 
 
-# --------------------------------------------------
+# -----------------------------
 # Crear Mount Target
-# --------------------------------------------------
-def crear_mount_target(efs_id, instancia):
-    """
-    Crea el Mount Target en la misma subnet que la EC2
-    """
-    subnet_id = instancia.subnet_id
-    vpc_id = instancia.vpc_id
+# -----------------------------
+def crear_mount_target(efs_id, subnet_id, sg_id):
+    resp = efs_client.create_mount_target(
+        FileSystemId=efs_id,
+        SubnetId=subnet_id,
+        SecurityGroups=[sg_id]
+    )
 
-    # Security Group de la instancia (reutilizamos)
+    mt_id = resp["MountTargetId"]
+    print(f"Mount Target creado: {mt_id}")
+
+    return mt_id
+
+# -----------------------------
+# Montar EFS en EC2 y crear archivo
+# -----------------------------
+def crear_y_montar_efs(instancia, key_file,
+                        nombre_efs="MiEFS",
+                        mount_point="/mnt/efs"):
+    # 1️⃣ Crear EFS
+    efs_id = crear_efs(nombre_efs)
+
+    # 2️⃣ Obtener subnet y SG de la instancia
+    instancia.reload()
+
+    subnet_id = instancia.subnet_id
     sg_id = instancia.security_groups[0]["GroupId"]
 
-    try:
-        mt = efs_client.create_mount_target(
-            FileSystemId=efs_id,
-            SubnetId=subnet_id,
-            SecurityGroups=[sg_id]
-        )
-        print(f"Mount Target creado: {mt['MountTargetId']}")
-    except ClientError as e:
-        if "MountTargetConflict" in str(e):
-            print("Mount Target ya existe")
-        else:
-            raise e
+    # 3️⃣ Crear Mount Target
+    crear_mount_target(efs_id, subnet_id, sg_id)
 
-    # Esperar a que esté disponible
-    sleep(20)
+    # 4️⃣ Esperar a que EFS esté accesible
+    print("Esperando a que EFS esté listo para montar...")
+    sleep(30)
 
-
-# --------------------------------------------------
-# Montar EFS en EC2 y crear archivo
-# --------------------------------------------------
-def montar_efs_en_ec2(instancia, efs_id, key_file,
-                     mount_point="/mnt/efs"):
-    """
-    Monta el EFS en la EC2 vía SSH y crea un archivo
-    """
-
+    # 5️⃣ Montar vía SSH
     public_ip = instancia.public_ip_address
     if not public_ip:
-        raise Exception("La instancia no tiene IP pública")
+        print("La instancia no tiene IP pública")
+        return efs_id
 
-    dns_efs = f"{efs_id}.efs.{client.meta.region_name}.amazonaws.com"
+    region = os.getenv("REGION")
 
     comandos = f"""
 sudo yum install -y amazon-efs-utils ||
 sudo yum install -y nfs-utils
 
 sudo mkdir -p {mount_point}
-sudo mount -t efs {dns_efs}:/ {mount_point}
+
+sudo mount -t efs -o tls {efs_id}:/ {mount_point}
+
 echo 'Hola desde EFS' | sudo tee {mount_point}/archivo_efs.txt
 """
 
-    cmd_ssh = f'ssh -o StrictHostKeyChecking=no -i "{key_file}" ec2-user@{public_ip} "{comandos}"'
+    cmd_ssh = (
+        f'ssh -o StrictHostKeyChecking=no '
+        f'-i "{key_file}" ec2-user@{public_ip} "{comandos}"'
+    )
 
-    print("Montando EFS y creando archivo vía SSH...")
+    print(f"Ejecutando SSH:\n{cmd_ssh}")
     os.system(cmd_ssh)
 
-    print(f"EFS montado en {mount_point}")
-    print(f"Archivo creado: {mount_point}/archivo_efs.txt")
-
-
-# --------------------------------------------------
-# FUNCIÓN COMPLETA (todo en uno)
-# --------------------------------------------------
-def crear_y_montar_efs(instancia, key_file, nombre_efs="MiEFS"):
-    """
-    Flujo completo:
-    - Crear EFS
-    - Crear Mount Target
-    - Montar en EC2
-    - Crear archivo
-    """
-    efs_id = crear_efs(nombre_efs)
-    crear_mount_target(efs_id, instancia)
-    montar_efs_en_ec2(instancia, efs_id, key_file)
+    print("EFS montado y archivo creado correctamente")
     return efs_id
