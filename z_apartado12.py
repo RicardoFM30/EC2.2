@@ -1,4 +1,4 @@
-import boto3
+from aws_session import get_s3_client, get_athena_client
 import time
 import csv
 import os
@@ -10,8 +10,8 @@ OUTPUT = f's3://{BUCKET}/resultados/'
 DATABASE = 'mi_basedatos_particion'
 TABLE_NAME = 'mi_tabla_particion'
 
-s3 = boto3.client('s3')
-athena = boto3.client('athena')
+s3 = get_s3_client()
+athena = get_athena_client()
 
 # ---------------- FUNCIONES ---------------- #
 

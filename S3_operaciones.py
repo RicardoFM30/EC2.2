@@ -2,17 +2,12 @@ import boto3
 import os
 import csv
 import time
+from aws_session import get_s3_client
 
 
 def conectar_s3():
     print("🔹 [1/6] Conectando con AWS S3...")
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=os.getenv("ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("SECRET_KEY"),
-        aws_session_token=os.getenv("SESSION_TOKEN"),
-        region_name=os.getenv("REGION", "us-east-1")
-    )
+    s3_client = get_s3_client()
     print("✅ Conexión con S3 establecida\n")
     return s3_client
 

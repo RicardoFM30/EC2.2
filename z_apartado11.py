@@ -1,4 +1,4 @@
-import boto3
+from aws_session import get_s3_client, get_athena_client
 import json
 import time
 import os
@@ -10,8 +10,8 @@ JSON_FOLDER = 'json'          # carpeta dentro del bucket para el JSON
 OUTPUT = f's3://{BUCKET}/resultados/'
 TABLE_NAME = 'mi_tabla_json'
 
-s3 = boto3.client('s3')
-athena = boto3.client('athena')
+s3 = get_s3_client()
+athena = get_athena_client()
 
 # ---------------- FUNCIONES ---------------- #
 

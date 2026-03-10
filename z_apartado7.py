@@ -1,28 +1,14 @@
 import os
 from dotenv import load_dotenv
-import boto3
+from aws_session import get_s3_client
 import csv
 import time
 
 # ---------------- CARGAR CREDENCIALES ---------------- #
 load_dotenv()  # lee el archivo .env
 
-ACCESS_KEY = os.getenv("ACCESS_KEY")
-SECRET_KEY = os.getenv("SECRET_KEY")
-SESSION_TOKEN = os.getenv("SESSION_TOKEN")
-REGION = os.getenv("REGION", "us-east-1")
-
-if not ACCESS_KEY or not SECRET_KEY:
-    raise ValueError("❌ Faltan credenciales en el archivo .env")
-
 # ---------------- CLIENTE S3 ---------------- #
-s3_client = boto3.client(
-    "s3",
-    aws_access_key_id=ACCESS_KEY,
-    aws_secret_access_key=SECRET_KEY,
-    aws_session_token=SESSION_TOKEN,
-    region_name=REGION
-)
+s3_client = get_s3_client()
 
 # ---------------- CONFIGURACIÓN DEL SCRIPT ---------------- #
 BUCKET_NAME = "mi-bucket-glacier-123456"  # cambia a tu bucket

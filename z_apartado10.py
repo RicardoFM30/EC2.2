@@ -1,4 +1,4 @@
-import boto3
+from aws_session import get_athena_client
 import time
 import os
 
@@ -9,7 +9,7 @@ CSV_PATH = f's3://{BUCKET}/datos.csv'           # Ruta del CSV
 OUTPUT = f's3://{BUCKET}/resultados/'           # Carpeta donde Athena guardará resultados
 TABLE_NAME = 'mi_tabla_csv'                     # Nombre de la tabla Athena
 
-athena = boto3.client('athena')
+athena = get_athena_client()
 
 
 # ---------------- FUNCIONES ---------------- #
