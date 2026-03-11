@@ -6,7 +6,7 @@ ec2 = get_ec2_resource()
 client = get_ec2_client()
 
 
-def crear_instancia(nombre="MiInstanciaEC2", key_name="MiKeyPair"):
+def crear_instancia(nombre, key_name="MiKeyPair"):
 	"""Crea una instancia Amazon Linux 2023, con Key Pair y Security Group para SSH"""
 
 	# Crear Key Pair si no existe
@@ -80,7 +80,6 @@ def crear_instancia(nombre="MiInstanciaEC2", key_name="MiKeyPair"):
 	instancia.wait_until_running()
 	instancia.reload()
 	print(f"Instancia {instancia.id} corriendo")
-	print(f"Conéctate vía SSH usando la clave: {key_name}.pem")
     
 	return instancia
 

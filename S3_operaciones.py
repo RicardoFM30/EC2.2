@@ -5,6 +5,10 @@ import time
 from aws_session import get_s3_client
 
 
+# -----------------------------
+# EJERCICIO 4: S3 Básico
+# Crear un S3 estándar, crear un bucket y añadir varias carpetas con un CSV
+# -----------------------------
 def conectar_s3():
     print("🔹 [1/6] Conectando con AWS S3...")
     s3_client = get_s3_client()
@@ -61,6 +65,9 @@ def descargar_objeto(s3_client, bucket_name, key_s3, nombre_local):
     )
     print(f"✅ Archivo descargado como '{nombre_local}'\n")
 
+# -----------------------------
+# EJERCICIO 5: S3 Standard - Acceso poco frecuente (STANDARD_IA)
+# -----------------------------
 def subir_objeto_standard_ia(s3_client, bucket_name, archivo_local, key_s3):
     print("🔹 [3/5] Subiendo objeto con clase STANDARD_IA...")
 
@@ -76,6 +83,9 @@ def subir_objeto_standard_ia(s3_client, bucket_name, archivo_local, key_s3):
     print("✅ Objeto subido en clase STANDARD_IA\n")
 
 
+# -----------------------------
+# EJERCICIO 6: S3 Intelligent-Tiering
+# -----------------------------
 def subir_objeto_intelligent_tiering(s3_client, bucket_name, archivo_local, key_s3):
     print("🔹 [3/5] Subiendo objeto con clase INTELLIGENT_TIERING...")
 
@@ -90,6 +100,9 @@ def subir_objeto_intelligent_tiering(s3_client, bucket_name, archivo_local, key_
 
     print("✅ Objeto subido en clase INTELLIGENT_TIERING\n")
 
+# -----------------------------
+# EJERCICIO 7: S3 Glacier
+# -----------------------------
 def subir_objeto_glacier(s3_client, bucket_name, archivo_local, key_s3):
     print("🔹 [3/6] Subiendo objeto con clase GLACIER...")
 
@@ -144,6 +157,9 @@ def comprobar_restauracion(s3_client, bucket_name, key_s3, wait_interval=60):
         time.sleep(wait_interval)  # espera antes de revisar de nuevo
 
 
+# -----------------------------
+# EJERCICIO 8: S3 Glacier Deep Archive
+# -----------------------------
 def subir_objeto_deep_archive(s3_client, bucket_name, archivo_local, key_s3):
     print("🔹 [3/6] Subiendo objeto con clase DEEP_ARCHIVE...")
 
@@ -174,18 +190,42 @@ def restaurar_objeto_deep_archive(s3_client, bucket_name, key_s3):
 
     print("⏳ Restauración solicitada (puede tardar muchas horas)\n")
 
-def comprobar_restauracion(s3_client, bucket_name, key_s3):
+def comprobar_restauracion(s3_client, bucket_name, key_s3, wait_interval=60, max_wait_seconds=None):
     print("🔹 [5/6] Comprobando estado de restauración...")
 
-    response = s3_client.head_object(
-        Bucket=bucket_name,
-        Key=key_s3
-    )
+    elapsed = 0
+    while True:
+        try:
+            response = s3_client.head_object(Bucket=bucket_name, Key=key_s3)
+        except Exception as e:
+            print(f"Error al consultar objeto: {e}. Reintentando en {wait_interval}s...")
+            if max_wait_seconds is not None and elapsed >= max_wait_seconds:
+                raise TimeoutError(f"Timeout tras {max_wait_seconds}s al comprobar restauración")
+            time.sleep(wait_interval)
+            elapsed += wait_interval
+            continue
 
-    restore_status = response.get("Restore", "No restaurado")
+        restore_status = response.get("Restore")
 
-    print(f"📊 Estado: {restore_status}\n")
+        if restore_status:
+            # Cuando 'ongoing-request="false"' significa que ya está restaurado
+            if 'ongoing-request="false"' in restore_status:
+                print("✅ Objeto restaurado y listo para descargar\n")
+                return True
+            else:
+                print(f"⏳ Objeto en restauración... ({restore_status})")
+        else:
+            print("⏳ Restauración no iniciada o en cola...")
 
+        if max_wait_seconds is not None and elapsed >= max_wait_seconds:
+            raise TimeoutError(f"Timeout tras {max_wait_seconds}s esperando restauración")
+
+        time.sleep(wait_interval)
+        elapsed += wait_interval
+
+# -----------------------------
+# EJERCICIO 9: Versionado en S3
+# -----------------------------
 def activar_versionado(s3_client, bucket_name):
     print("🔹 [2/6] Activando versionado en el bucket...")
 

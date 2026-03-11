@@ -3,3 +3,13 @@ __pychache__
 ClaveNueva.pem
 .env
 NuevaClav.pem
+*.pem
+*.csv
+.venv/
+.env
+__pycache__/
+.idea/
+*.pyc
+/.vscode/
+datos.csv
+datos.json

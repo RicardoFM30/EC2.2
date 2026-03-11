@@ -48,7 +48,7 @@ def main():
         "deep_archive/datos_deep.csv"
     )
 
-    # ⚠️ Solo funcionará cuando esté restaurado
+    # Solo funcionará cuando esté restaurado
     descargar_objeto(
         s3_client,
         BUCKET_NAME,
